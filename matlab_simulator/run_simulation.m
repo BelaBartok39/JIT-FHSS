@@ -25,9 +25,9 @@ centerFreq = mean(frequencyBand);
 
 % Orbital parameters
 altitude = 500;             % Satellite altitude in km (LEO)
-inclination = 45;           % Orbital inclination in degrees
-groundStationLat = 37.4;    % Ground station latitude (e.g., California)
-groundStationLon = -122.1;  % Ground station longitude
+inclination = 98;           % Orbital inclination in degrees (sun-synchronous polar orbit)
+groundStationLat = 0;       % Ground station latitude (equator - guaranteed visibility)
+groundStationLon = 0;       % Ground station longitude (prime meridian)
 
 % Central source parameters
 numCentralSources = 3;      % Number of redundant central sources
@@ -95,8 +95,12 @@ fprintf('\n');
 
 %% Pre-load Pattern Buffers
 fprintf('Pre-loading pattern buffers...\n');
-satellite.requestPatterns(centralSource, bufferSize);
-receiver.requestPatterns(centralSource, bufferSize);
+% Generate patterns once and give SAME patterns to both sender and receiver
+for i = 1:bufferSize
+    pattern = centralSource.generatePattern(0);  % Initial time = 0
+    satellite.patternBuffer.addPattern(pattern);
+    receiver.patternBuffer.addPattern(pattern);
+end
 fprintf('  Satellite buffer: %d patterns\n', satellite.patternBuffer.getBufferLevel());
 fprintf('  Receiver buffer: %d patterns\n', receiver.patternBuffer.getBufferLevel());
 fprintf('\n');
@@ -137,12 +141,21 @@ for i = 1:numTimeSteps
     end
 
     % Periodically request new patterns if buffer is low
+    % IMPORTANT: Both sender and receiver must get THE SAME patterns for sync
     if mod(i, 10) == 0
-        if satellite.patternBuffer.getBufferLevel() < bufferSize * 0.3
-            satellite.requestPatterns(centralSource, 10);
-        end
-        if receiver.patternBuffer.getBufferLevel() < bufferSize * 0.3
-            receiver.requestPatterns(centralSource, 10);
+        needPatterns = (satellite.patternBuffer.getBufferLevel() < bufferSize * 0.3) || ...
+                      (receiver.patternBuffer.getBufferLevel() < bufferSize * 0.3);
+
+        if needPatterns
+            % Generate patterns once and distribute to both
+            numNewPatterns = 10;
+            for j = 1:numNewPatterns
+                pattern = centralSource.generatePattern(currentTime);
+
+                % Add same pattern to both buffers
+                satellite.patternBuffer.addPattern(pattern);
+                receiver.patternBuffer.addPattern(pattern);
+            end
         end
     end
 
@@ -224,6 +237,12 @@ fprintf('\n');
 
 %% Save Results
 fprintf('Saving results...\n');
+
+% Ensure results directory exists
+if ~exist('results', 'dir')
+    mkdir('results');
+end
+
 results = struct();
 results.parameters = struct('simDuration', simDuration, ...
                             'timeStep', timeStep, ...
