@@ -86,34 +86,34 @@ plot3(ax3d, orbitX, orbitY, orbitZ, 'w--', 'LineWidth', 2, 'Color', [0.7, 0.7, 0
 
 % Ground station marker (at equator) - raised for visibility
 gsRadius = earthRadius + 200; % Elevated above surface for visibility
-gsMarker = plot3(ax3d, gsRadius, 0, 0, 'g^', 'MarkerSize', 25, ...
-                 'MarkerFaceColor', 'g', 'LineWidth', 3);
+gsMarker = plot3(ax3d, gsRadius, 0, 0, 'g^', 'MarkerSize', 12, ...
+                 'MarkerFaceColor', 'g', 'LineWidth', 2);
 text(ax3d, gsRadius+300, 0, 0, 'Ground Station', 'Color', 'g', ...
-     'FontSize', 11, 'FontWeight', 'bold');
+     'FontSize', 10, 'FontWeight', 'bold');
 
 % Satellite marker (larger for visibility)
-satMarker = plot3(ax3d, 0, 0, 0, 'ro', 'MarkerSize', 20, ...
-                  'MarkerFaceColor', 'r', 'LineWidth', 3);
+satMarker = plot3(ax3d, 0, 0, 0, 'ro', 'MarkerSize', 10, ...
+                  'MarkerFaceColor', 'r', 'LineWidth', 2);
 
 % Communication beams (will be updated)
 % Pattern distribution beams (thinner, dashed)
-beamCentralToSat = plot3(ax3d, [0, 0], [0, 0], [0, 0], 'c--', 'LineWidth', 1.5);
-beamCentralToGS = plot3(ax3d, [0, 0], [0, 0], [0, 0], 'm--', 'LineWidth', 1.5);
+beamCentralToSat = plot3(ax3d, [0, 0], [0, 0], [0, 0], 'c--', 'LineWidth', 0.8);
+beamCentralToGS = plot3(ax3d, [0, 0], [0, 0], [0, 0], 'm--', 'LineWidth', 0.8);
 
-% Data transmission beam (thick, will pulse)
-beamSatToGS = plot3(ax3d, [0, 0], [0, 0], [0, 0], 'y-', 'LineWidth', 5);
+% Data transmission beam (will pulse)
+beamSatToGS = plot3(ax3d, [0, 0], [0, 0], [0, 0], 'y-', 'LineWidth', 2);
 
 % Add beam data flow indicators (small spheres that move along beam)
-dataFlowMarker1 = plot3(ax3d, 0, 0, 0, 'yo', 'MarkerSize', 10, 'MarkerFaceColor', 'y');
-dataFlowMarker2 = plot3(ax3d, 0, 0, 0, 'yo', 'MarkerSize', 8, 'MarkerFaceColor', 'y');
-dataFlowMarker3 = plot3(ax3d, 0, 0, 0, 'yo', 'MarkerSize', 6, 'MarkerFaceColor', 'y');
+dataFlowMarker1 = plot3(ax3d, 0, 0, 0, 'yo', 'MarkerSize', 6, 'MarkerFaceColor', 'y');
+dataFlowMarker2 = plot3(ax3d, 0, 0, 0, 'yo', 'MarkerSize', 5, 'MarkerFaceColor', 'y');
+dataFlowMarker3 = plot3(ax3d, 0, 0, 0, 'yo', 'MarkerSize', 4, 'MarkerFaceColor', 'y');
 
 % Central source indicator (off Earth)
 centralSourcePos = [earthRadius*1.5, 0, -earthRadius*0.5];
 plot3(ax3d, centralSourcePos(1), centralSourcePos(2), centralSourcePos(3), ...
-      'ws', 'MarkerSize', 20, 'MarkerFaceColor', 'w', 'LineWidth', 2);
+      'ws', 'MarkerSize', 10, 'MarkerFaceColor', 'w', 'LineWidth', 1.5);
 text(ax3d, centralSourcePos(1)+500, centralSourcePos(2), centralSourcePos(3), ...
-     'Central Source', 'Color', 'w', 'FontSize', 10, 'FontWeight', 'bold');
+     'Central Source', 'Color', 'w', 'FontSize', 9, 'FontWeight', 'bold');
 
 xlim(ax3d, [-orbitRadius*1.5, orbitRadius*1.5]);
 ylim(ax3d, [-orbitRadius*1.5, orbitRadius*1.5]);
@@ -245,7 +245,7 @@ while i <= length(times) && ishandle(fig)
             set(beamSatToGS, 'XData', [visualSatPos(1), gsRadius], ...
                              'YData', [visualSatPos(2), 0], ...
                              'ZData', [visualSatPos(3), 0], ...
-                             'Color', beamColor, 'LineWidth', 3 + 2*pulseIntensity);
+                             'Color', beamColor, 'LineWidth', 1.5 + 0.5*pulseIntensity);
 
             % Animate data flow markers along the beam
             % Position markers at different phases along the beam path
@@ -317,8 +317,8 @@ while i <= length(times) && ishandle(fig)
         set(txtBuffer, 'String', sprintf('Buffer: %d/50 patterns', 50-bufferLevel));
 
         %% Update Frequency Chart
-        % Only add to plot when actually transmitting (visible)
-        if visible && ~isnan(txFreq)
+        % Only add to plot when actually transmitting (visible AND valid frequency)
+        if visible && ~isnan(txFreq) && txFreq > 1e6  % Must have frequency > 1 MHz
             timeHistory(end+1) = currentTime;
             freqHistory(end+1) = txFreq/1e6;
 
