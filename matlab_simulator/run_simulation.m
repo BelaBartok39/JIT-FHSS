@@ -26,8 +26,8 @@ centerFreq = mean(frequencyBand);
 % Orbital parameters
 altitude = 500;             % Satellite altitude in km (LEO)
 inclination = 98;           % Orbital inclination in degrees (sun-synchronous polar orbit)
-groundStationLat = 37.4;    % Ground station latitude (e.g., California)
-groundStationLon = -122.1;  % Ground station longitude
+groundStationLat = 0;       % Ground station latitude (equator - guaranteed visibility)
+groundStationLon = 0;       % Ground station longitude (prime meridian)
 
 % Central source parameters
 numCentralSources = 3;      % Number of redundant central sources
