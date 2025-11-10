@@ -13,7 +13,7 @@ fprintf('=== JIT-FHSS Simulation ===\n\n');
 fprintf('Configuring simulation parameters...\n');
 
 % Time parameters
-simDuration = 1000;         % Total simulation duration in seconds
+simDuration = 6000;         % Total simulation duration in seconds (full orbit)
 timeStep = 0.1;             % Time step in seconds
 hopDuration = 1.0;          % Frequency hop duration in seconds
 timeVector = 0:timeStep:simDuration;
@@ -36,8 +36,8 @@ bufferSize = 50;            % Pattern buffer size
 
 % Simulation scenarios
 jamCentralSource = true;    % Enable jamming scenario
-jamStartTime = 400;         % When to start jamming
-jamDuration = 200;          % How long jamming lasts
+jamStartTime = 2400;        % When to start jamming (40% through simulation)
+jamDuration = 1200;         % How long jamming lasts (20% of simulation)
 
 fprintf('  Simulation Duration: %d seconds\n', simDuration);
 fprintf('  Frequency Band: %.1f - %.1f MHz\n', frequencyBand(1)/1e6, frequencyBand(2)/1e6);
@@ -163,9 +163,12 @@ fprintf('=== Simulation Results ===\n\n');
 fprintf('Performance Metrics:\n');
 fprintf('  Total Transmissions: %d\n', totalTransmissions);
 fprintf('  Successful Receptions: %d\n', successfulTransmissions);
+successRate = 0; % Initialize
 if totalTransmissions > 0
     successRate = (successfulTransmissions / totalTransmissions) * 100;
     fprintf('  Success Rate: %.2f%%\n', successRate);
+else
+    fprintf('  Success Rate: N/A (no transmissions - satellite not visible)\n');
 end
 fprintf('\n');
 
