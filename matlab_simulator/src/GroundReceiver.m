@@ -93,8 +93,11 @@ classdef GroundReceiver < handle
             logEntry.range = transmittedSignal.range;
             logEntry.rangeRate = transmittedSignal.rangeRate;
 
+            % Always include decodedSymbol field for consistent structure
             if success
                 logEntry.decodedSymbol = decodedSymbol;
+            else
+                logEntry.decodedSymbol = NaN;
             end
 
             if isempty(obj.receiveLog)
