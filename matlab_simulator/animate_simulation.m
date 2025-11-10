@@ -47,18 +47,32 @@ animData.paused = false;
 animData.quit = false;
 animData.wasVisible = false; % Track visibility transitions
 
-% Start animation BEFORE first visibility to see satellite enter window
-% Find first successful transmission (when satellite is visible)
-firstVisibleIdx = find([receiverLog.success] == true, 1, 'first');
-if isempty(firstVisibleIdx)
-    % No successful transmissions, just start from beginning
-    startIndex = 1;
-else
-    % Look back ~2 minutes (1200 frames at 0.1s per frame) before first visible transmission
-    startIndex = max(1, firstVisibleIdx - 1200);
+% Start animation BEFORE visibility window to see satellite enter
+% Find visibility transitions in the data
+elevations = zeros(1, length(times));
+for idx = 1:length(times)
+    elevations(idx) = orbit.getElevationAngle(times(idx));
 end
-fprintf('First visible transmission at index %d\n', firstVisibleIdx);
-fprintf('Starting animation at index %d to show visibility window entry...\n', startIndex);
+isVisible = elevations > 5; % 5° elevation threshold
+
+% Find first time satellite becomes visible (rising above horizon)
+visibilityChanges = diff([false, isVisible]);
+enteringIndices = find(visibilityChanges == 1); % Transitions from not visible to visible
+
+if ~isempty(enteringIndices)
+    % Use first entering event
+    firstEnterIdx = enteringIndices(1);
+    % Start 1200 frames before entering (2 minutes at 0.1s/frame)
+    startIndex = max(1, firstEnterIdx - 1200);
+    fprintf('Satellite enters visibility at index %d (t=%.1fs, elev=%.1f°)\n', ...
+            firstEnterIdx, times(firstEnterIdx), elevations(firstEnterIdx));
+else
+    % Satellite never enters (always visible or never visible)
+    startIndex = 1;
+    fprintf('No visibility transition found in simulation data\n');
+end
+fprintf('Starting animation at index %d (t=%.1fs, elev=%.1f°)\n', ...
+        startIndex, times(startIndex), elevations(startIndex));
 
 %% Create Figure
 fig = figure('Position', [50, 50, 1400, 900], 'Color', 'k', ...
@@ -161,8 +175,9 @@ title(axFreq, 'Frequency Hopping Pattern', 'Color', 'w', 'FontSize', 12);
 set(axFreq, 'XColor', 'w', 'YColor', 'w', 'GridColor', 'w', 'GridAlpha', 0.3);
 grid(axFreq, 'on');
 
-freqPlot = plot(axFreq, [], [], 'yo', 'MarkerSize', 15, 'MarkerFaceColor', 'yellow', ...
-                'MarkerEdgeColor', 'yellow', 'LineWidth', 2);
+% Use scatter for better control over marker rendering
+freqPlot = scatter(axFreq, [], [], 100, 'y', 'filled', ...
+                   'MarkerEdgeColor', 'y', 'LineWidth', 1.5);
 
 %% Create Status Bar (Top right)
 axStatus = axes('Position', [0.70, 0.85, 0.25, 0.10], 'Color', 'k', ...
@@ -349,10 +364,10 @@ while i <= length(times) && ishandle(fig)
             plotTimes = timeHistory(end-windowSize+1:end);
             plotFreqs = freqHistory(end-windowSize+1:end);
 
-            % Update plot - use absolute times relative to first hop
+            % Update scatter plot - use absolute times relative to first hop
             set(freqPlot, 'XData', plotTimes - plotTimes(1), ...
                           'YData', plotFreqs, ...
-                          'MarkerSize', 15, ...
+                          'SizeData', 100, ...
                           'Visible', 'on');
 
             if length(plotTimes) > 1
@@ -370,7 +385,7 @@ while i <= length(times) && ishandle(fig)
         end
 
         %% Update and Pause
-        drawnow limitrate;
+        drawnow; % Force full graphics update
 
         % Advance frame
         i = i + animData.frameSkip;
