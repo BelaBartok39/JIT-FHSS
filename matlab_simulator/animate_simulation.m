@@ -48,8 +48,8 @@ animData.quit = false;
 animData.wasVisible = false; % Track visibility transitions
 
 % Start animation BEFORE first visibility to see satellite enter window
-% Look back 30 seconds before first transmission
-startIndex = max(1, find(~isnan([satelliteLog.range]), 1, 'first') - 300);
+% Look back ~2 minutes before first transmission
+startIndex = max(1, find(~isnan([satelliteLog.range]), 1, 'first') - 1200);
 fprintf('Starting animation at index %d to show visibility window entry...\n', startIndex);
 
 %% Create Figure
@@ -153,8 +153,8 @@ title(axFreq, 'Frequency Hopping Pattern', 'Color', 'w', 'FontSize', 12);
 set(axFreq, 'XColor', 'w', 'YColor', 'w', 'GridColor', 'w', 'GridAlpha', 0.3);
 grid(axFreq, 'on');
 
-freqPlot = plot(axFreq, [], [], 'yo', 'MarkerSize', 12, 'MarkerFaceColor', 'y', ...
-                'MarkerEdgeColor', 'y', 'LineStyle', 'none');
+freqPlot = plot(axFreq, [], [], 'yo', 'MarkerSize', 15, 'MarkerFaceColor', 'yellow', ...
+                'MarkerEdgeColor', 'yellow', 'LineWidth', 2);
 
 %% Create Status Bar (Top right)
 axStatus = axes('Position', [0.70, 0.85, 0.25, 0.10], 'Color', 'k', ...
@@ -321,6 +321,12 @@ while i <= length(times) && ishandle(fig)
         if visible && ~isnan(txFreq)
             timeHistory(end+1) = currentTime;
             freqHistory(end+1) = txFreq/1e6;
+
+            % Debug output on first hop
+            if length(timeHistory) == 1
+                fprintf('[FREQ PLOT] First hop recorded: t=%.1fs, f=%.3f MHz\n', ...
+                        currentTime, txFreq/1e6);
+            end
         end
 
         % Update plot if we have data
@@ -330,14 +336,14 @@ while i <= length(times) && ishandle(fig)
             plotTimes = timeHistory(end-windowSize+1:end);
             plotFreqs = freqHistory(end-windowSize+1:end);
 
-            % Update plot with relative time (starting from 0)
-            if length(plotTimes) >= 1
-                set(freqPlot, 'XData', plotTimes - plotTimes(1), 'YData', plotFreqs);
-                if length(plotTimes) > 1
-                    xlim(axFreq, [0, max(50, plotTimes(end) - plotTimes(1))]);
-                else
-                    xlim(axFreq, [0, 50]); % Default window for first point
-                end
+            % Update plot - use absolute times relative to first hop
+            set(freqPlot, 'XData', plotTimes - plotTimes(1), ...
+                          'YData', plotFreqs, 'Visible', 'on');
+
+            if length(plotTimes) > 1
+                xlim(axFreq, [0, max(50, plotTimes(end) - plotTimes(1))]);
+            else
+                xlim(axFreq, [0, 50]); % Default window for first point
             end
         end
 
