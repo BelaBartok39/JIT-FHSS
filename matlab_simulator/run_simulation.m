@@ -68,6 +68,31 @@ dopplerModel = DopplerModel();
 
 fprintf('\n');
 
+%% Find Visibility Window
+fprintf('Finding satellite visibility window...\n');
+timeOffset = 0;
+maxSearchTime = orbitModel.orbitalPeriod * 2; % Search up to 2 orbits
+found = false;
+
+for t_search = 0:10:maxSearchTime
+    [range, ~] = orbitModel.getRangeToGroundStation(t_search);
+    elevation = orbitModel.getElevationAngle(t_search);
+    if orbitModel.isVisible(t_search, 5) % 5 degree minimum elevation
+        timeOffset = t_search;
+        found = true;
+        fprintf('  First visibility at t=%.1f s\n', t_search);
+        fprintf('  Range: %.1f km, Elevation: %.1f degrees\n', range, elevation);
+        break;
+    end
+end
+
+if ~found
+    warning('No visibility window found! Check orbital parameters and ground station location.');
+    fprintf('  Continuing simulation anyway (may have no transmissions)...\n');
+end
+
+fprintf('\n');
+
 %% Pre-load Pattern Buffers
 fprintf('Pre-loading pattern buffers...\n');
 satellite.requestPatterns(centralSource, bufferSize);
@@ -78,6 +103,7 @@ fprintf('\n');
 
 %% Run Simulation
 fprintf('Running simulation...\n');
+fprintf('Starting from time offset: %.1f seconds\n', timeOffset);
 fprintf('Progress: ');
 
 numTimeSteps = length(timeVector);
@@ -90,7 +116,7 @@ cacheUsageCount = 0;
 sourceFailovers = 0;
 
 for i = 1:numTimeSteps
-    currentTime = timeVector(i);
+    currentTime = timeVector(i) + timeOffset; % Apply time offset for visibility
 
     % Update time for all components
     satellite.setTime(currentTime);

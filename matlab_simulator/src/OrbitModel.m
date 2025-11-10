@@ -100,10 +100,14 @@ classdef OrbitModel < handle
             rangeVec = satPos - gsPos;
             range = norm(rangeVec);
 
-            % Simplified elevation calculation
-            % Angle between range vector and local horizontal
-            height = norm(satPos) - obj.earthRadius;
-            elevation = rad2deg(asin(height / range));
+            % Local vertical at ground station (zenith direction)
+            localVertical = gsPos / norm(gsPos);
+
+            % Angle between range vector and local vertical
+            cosAngle = dot(rangeVec, localVertical) / range;
+
+            % Elevation is 90° minus angle from vertical
+            elevation = 90 - rad2deg(acos(cosAngle));
         end
 
         function visible = isVisible(obj, t, minElevation)
