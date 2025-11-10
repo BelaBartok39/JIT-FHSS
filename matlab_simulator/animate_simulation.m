@@ -176,8 +176,8 @@ set(axFreq, 'XColor', 'w', 'YColor', 'w', 'GridColor', 'w', 'GridAlpha', 0.3);
 grid(axFreq, 'on');
 
 % Use scatter for better control over marker rendering
-freqPlot = scatter(axFreq, [], [], 100, 'y', 'filled', ...
-                   'MarkerEdgeColor', 'y', 'LineWidth', 1.5);
+freqPlot = scatter(axFreq, [], [], 40, 'y', 'filled', ...
+                   'MarkerEdgeColor', 'y', 'LineWidth', 1);
 
 %% Create Status Bar (Top right)
 axStatus = axes('Position', [0.70, 0.85, 0.25, 0.10], 'Color', 'k', ...
@@ -359,27 +359,32 @@ while i <= length(times) && ishandle(fig)
 
         % Update plot if we have data
         if ~isempty(timeHistory)
-            % Keep only last 50 seconds of data
-            windowSize = min(500, length(timeHistory));
-            plotTimes = timeHistory(end-windowSize+1:end);
-            plotFreqs = freqHistory(end-windowSize+1:end);
+            % Show last 50 seconds in a scrolling window
+            windowDuration = 50; % seconds
 
-            % Update scatter plot - use absolute times relative to first hop
-            set(freqPlot, 'XData', plotTimes - plotTimes(1), ...
-                          'YData', plotFreqs, ...
-                          'SizeData', 100, ...
-                          'Visible', 'on');
+            % Find data points within the time window
+            windowStart = max(0, currentTime - windowDuration);
+            windowEnd = currentTime;
+            inWindow = (timeHistory >= windowStart) & (timeHistory <= windowEnd);
 
-            if length(plotTimes) > 1
-                xlim(axFreq, [0, max(50, plotTimes(end) - plotTimes(1))]);
-            else
-                xlim(axFreq, [0, 50]); % Default window for first point
+            plotTimes = timeHistory(inWindow);
+            plotFreqs = freqHistory(inWindow);
+
+            % Update scatter plot with scrolling X-axis
+            if ~isempty(plotTimes)
+                set(freqPlot, 'XData', plotTimes, ...
+                              'YData', plotFreqs, ...
+                              'SizeData', 40, ...
+                              'Visible', 'on');
+
+                % Scrolling X-axis: show current time window
+                xlim(axFreq, [windowStart, windowEnd]);
             end
 
             % Debug on first plot update
             if length(timeHistory) == 1
                 fprintf('[FREQ PLOT] Plot updated: %d points, XData range [%.1f-%.1f], YData range [%.1f-%.1f]\n', ...
-                        length(plotFreqs), min(plotTimes - plotTimes(1)), max(plotTimes - plotTimes(1)), ...
+                        length(plotFreqs), min(plotTimes), max(plotTimes), ...
                         min(plotFreqs), max(plotFreqs));
             end
         end
@@ -387,11 +392,16 @@ while i <= length(times) && ishandle(fig)
         %% Update and Pause
         drawnow; % Force full graphics update
 
-        % Advance frame
-        i = i + animData.frameSkip;
-
-        % Pause based on speed (simulate time passing)
-        pause(0.001 / animData.speedMultiplier);
+        % Advance frame (skip faster when not visible to avoid dead time)
+        if visible
+            % Normal speed when satellite is visible
+            i = i + animData.frameSkip;
+            pause(0.001 / animData.speedMultiplier);
+        else
+            % Skip ahead much faster when not visible (100x faster)
+            i = i + animData.frameSkip * 100;
+            pause(0.0001 / animData.speedMultiplier);
+        end
     else
         % Paused - just wait
         pause(0.1);
