@@ -95,8 +95,12 @@ fprintf('\n');
 
 %% Pre-load Pattern Buffers
 fprintf('Pre-loading pattern buffers...\n');
-satellite.requestPatterns(centralSource, bufferSize);
-receiver.requestPatterns(centralSource, bufferSize);
+% Generate patterns once and give SAME patterns to both sender and receiver
+for i = 1:bufferSize
+    pattern = centralSource.generatePattern(0);  % Initial time = 0
+    satellite.patternBuffer.addPattern(pattern);
+    receiver.patternBuffer.addPattern(pattern);
+end
 fprintf('  Satellite buffer: %d patterns\n', satellite.patternBuffer.getBufferLevel());
 fprintf('  Receiver buffer: %d patterns\n', receiver.patternBuffer.getBufferLevel());
 fprintf('\n');
@@ -137,12 +141,21 @@ for i = 1:numTimeSteps
     end
 
     % Periodically request new patterns if buffer is low
+    % IMPORTANT: Both sender and receiver must get THE SAME patterns for sync
     if mod(i, 10) == 0
-        if satellite.patternBuffer.getBufferLevel() < bufferSize * 0.3
-            satellite.requestPatterns(centralSource, 10);
-        end
-        if receiver.patternBuffer.getBufferLevel() < bufferSize * 0.3
-            receiver.requestPatterns(centralSource, 10);
+        needPatterns = (satellite.patternBuffer.getBufferLevel() < bufferSize * 0.3) || ...
+                      (receiver.patternBuffer.getBufferLevel() < bufferSize * 0.3);
+
+        if needPatterns
+            % Generate patterns once and distribute to both
+            numNewPatterns = 10;
+            for j = 1:numNewPatterns
+                pattern = centralSource.generatePattern(currentTime);
+
+                % Add same pattern to both buffers
+                satellite.patternBuffer.addPattern(pattern);
+                receiver.patternBuffer.addPattern(pattern);
+            end
         end
     end
 
