@@ -75,22 +75,25 @@ set(earthSurface, 'FaceColor', [0.2, 0.4, 0.8], 'EdgeColor', 'none', ...
 light('Position', [1, 0.5, 1], 'Style', 'infinite');
 material(ax3d, 'dull');
 
-% Draw orbital path
+% Draw orbital path (exaggerate altitude for visibility)
 theta = linspace(0, 2*pi, 100);
-orbitRadius = earthRadius + satAltitude;
+visualAltitude = satAltitude * 4; % 4x exaggeration for better visibility
+orbitRadius = earthRadius + visualAltitude;
 orbitX = orbitRadius * cos(theta);
 orbitY = orbitRadius * sin(theta) * cos(deg2rad(98));
 orbitZ = orbitRadius * sin(theta) * sin(deg2rad(98));
-plot3(ax3d, orbitX, orbitY, orbitZ, 'w--', 'LineWidth', 1, 'Color', [0.5, 0.5, 0.5, 0.3]);
+plot3(ax3d, orbitX, orbitY, orbitZ, 'w--', 'LineWidth', 2, 'Color', [0.7, 0.7, 0.7, 0.5]);
 
-% Ground station marker (at equator)
-gsRadius = earthRadius + 10; % Slightly above surface
-gsMarker = plot3(ax3d, gsRadius, 0, 0, 'g^', 'MarkerSize', 15, ...
-                 'MarkerFaceColor', 'g', 'LineWidth', 2);
+% Ground station marker (at equator) - raised for visibility
+gsRadius = earthRadius + 200; % Elevated above surface for visibility
+gsMarker = plot3(ax3d, gsRadius, 0, 0, 'g^', 'MarkerSize', 25, ...
+                 'MarkerFaceColor', 'g', 'LineWidth', 3);
+text(ax3d, gsRadius+300, 0, 0, 'Ground Station', 'Color', 'g', ...
+     'FontSize', 11, 'FontWeight', 'bold');
 
-% Satellite marker
-satMarker = plot3(ax3d, 0, 0, 0, 'ro', 'MarkerSize', 12, ...
-                  'MarkerFaceColor', 'r', 'LineWidth', 2);
+% Satellite marker (larger for visibility)
+satMarker = plot3(ax3d, 0, 0, 0, 'ro', 'MarkerSize', 20, ...
+                  'MarkerFaceColor', 'r', 'LineWidth', 3);
 
 % Communication beams (will be updated)
 % Pattern distribution beams (thinner, dashed)
@@ -150,7 +153,8 @@ title(axFreq, 'Frequency Hopping Pattern', 'Color', 'w', 'FontSize', 12);
 set(axFreq, 'XColor', 'w', 'YColor', 'w', 'GridColor', 'w', 'GridAlpha', 0.3);
 grid(axFreq, 'on');
 
-freqPlot = plot(axFreq, [], [], 'g.', 'MarkerSize', 8);
+freqPlot = plot(axFreq, [], [], 'yo', 'MarkerSize', 12, 'MarkerFaceColor', 'y', ...
+                'MarkerEdgeColor', 'y', 'LineStyle', 'none');
 
 %% Create Status Bar (Top right)
 axStatus = axes('Position', [0.70, 0.85, 0.25, 0.10], 'Color', 'k', ...
@@ -212,14 +216,19 @@ while i <= length(times) && ishandle(fig)
         pulseIntensity = 0.5 + 0.5 * sin(pulsePhase * 2 * pi);
 
         %% Update 3D View
-        % Update satellite position
-        set(satMarker, 'XData', satPos(1), 'YData', satPos(2), 'ZData', satPos(3));
+        % Update satellite position (scale for visibility)
+        actualRadius = norm(satPos);
+        visualRadius = earthRadius + visualAltitude;
+        scaleFactor = visualRadius / actualRadius;
+        visualSatPos = satPos * scaleFactor;
+
+        set(satMarker, 'XData', visualSatPos(1), 'YData', visualSatPos(2), 'ZData', visualSatPos(3));
 
         % Update beams
         % Central source to satellite (pattern distribution)
-        set(beamCentralToSat, 'XData', [centralSourcePos(1), satPos(1)], ...
-                              'YData', [centralSourcePos(2), satPos(2)], ...
-                              'ZData', [centralSourcePos(3), satPos(3)], ...
+        set(beamCentralToSat, 'XData', [centralSourcePos(1), visualSatPos(1)], ...
+                              'YData', [centralSourcePos(2), visualSatPos(2)], ...
+                              'ZData', [centralSourcePos(3), visualSatPos(3)], ...
                               'Color', [0, 1, 1, 0.4]);
 
         % Central source to ground station (pattern distribution)
@@ -233,9 +242,9 @@ while i <= length(times) && ishandle(fig)
             % Alpha based on Doppler effect AND pulsing
             beamAlpha = (0.3 + 0.6*dopplerAlpha) * pulseIntensity;
             beamColor = [1, 1, 0, beamAlpha]; % Yellow with dynamic alpha
-            set(beamSatToGS, 'XData', [satPos(1), gsRadius], ...
-                             'YData', [satPos(2), 0], ...
-                             'ZData', [satPos(3), 0], ...
+            set(beamSatToGS, 'XData', [visualSatPos(1), gsRadius], ...
+                             'YData', [visualSatPos(2), 0], ...
+                             'ZData', [visualSatPos(3), 0], ...
                              'Color', beamColor, 'LineWidth', 3 + 2*pulseIntensity);
 
             % Animate data flow markers along the beam
@@ -245,9 +254,9 @@ while i <= length(times) && ishandle(fig)
             t3 = mod(pulsePhase + 0.66, 1);
 
             % Interpolate positions along beam (satellite -> ground station)
-            marker1Pos = satPos * (1-t1) + [gsRadius; 0; 0] * t1;
-            marker2Pos = satPos * (1-t2) + [gsRadius; 0; 0] * t2;
-            marker3Pos = satPos * (1-t3) + [gsRadius; 0; 0] * t3;
+            marker1Pos = visualSatPos * (1-t1) + [gsRadius; 0; 0] * t1;
+            marker2Pos = visualSatPos * (1-t2) + [gsRadius; 0; 0] * t2;
+            marker3Pos = visualSatPos * (1-t3) + [gsRadius; 0; 0] * t3;
 
             set(dataFlowMarker1, 'XData', marker1Pos(1), 'YData', marker1Pos(2), 'ZData', marker1Pos(3));
             set(dataFlowMarker2, 'XData', marker2Pos(1), 'YData', marker2Pos(2), 'ZData', marker2Pos(3));
@@ -322,9 +331,13 @@ while i <= length(times) && ishandle(fig)
             plotFreqs = freqHistory(end-windowSize+1:end);
 
             % Update plot with relative time (starting from 0)
-            if length(plotTimes) > 1
+            if length(plotTimes) >= 1
                 set(freqPlot, 'XData', plotTimes - plotTimes(1), 'YData', plotFreqs);
-                xlim(axFreq, [0, max(50, plotTimes(end) - plotTimes(1))]);
+                if length(plotTimes) > 1
+                    xlim(axFreq, [0, max(50, plotTimes(end) - plotTimes(1))]);
+                else
+                    xlim(axFreq, [0, 50]); % Default window for first point
+                end
             end
         end
 
