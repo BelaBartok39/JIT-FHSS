@@ -83,6 +83,55 @@ pattern = manager.generatePattern(currentTime);
 4. Assign sequence number
 5. Return pattern to caller
 
+**Pattern Generation Algorithm**:
+```
+FUNCTION generatePattern(timestamp):
+    // Check for random jamming
+    UPDATE jamming_status()
+
+    // Try to find working source
+    attempts = 0
+    source_found = FALSE
+
+    WHILE attempts < number_of_sources AND NOT source_found:
+        IF current_source is active AND NOT jammed:
+            source_found = TRUE
+        ELSE:
+            // Failover to next source
+            current_source_index = (current_source_index + 1) MOD number_of_sources
+            attempts = attempts + 1
+        END IF
+    END WHILE
+
+    IF source_found:
+        // Generate high-entropy pattern
+        sequence_number = sequence_number + 1
+        frequency_index = RANDOM(1, number_of_frequencies)
+        frequency = min_freq + (frequency_index - 1) × frequency_step
+
+        RETURN Pattern{
+            frequency: frequency,
+            timestamp: timestamp,
+            sequence_number: sequence_number,
+            source_id: current_source_index,
+            from_cache: FALSE
+        }
+    ELSE:
+        // All sources failed - use fallback cache
+        cache_index = (sequence_number MOD cache_size) + 1
+        sequence_number = sequence_number + 1
+
+        RETURN Pattern{
+            frequency: cache[cache_index],
+            timestamp: timestamp,
+            sequence_number: sequence_number,
+            source_id: -1,
+            from_cache: TRUE
+        }
+    END IF
+END FUNCTION
+```
+
 ---
 
 ### 2. PatternBuffer (`src/PatternBuffer.m`)
@@ -122,6 +171,62 @@ Full:     [■■■■■■■■■■■■■■■■■■■■] 50/50 p
 Healthy:  [■■■■■■■■■■■□□□□□□□□□] 15/50 patterns
 Low:      [■■■■■■■■■□□□□□□□□□□□] 9/50 patterns ⚠️ WARNING!
 Empty:    [□□□□□□□□□□□□□□□□□□□□] 0/50 patterns ❌ ERROR!
+```
+
+**Buffer Add Algorithm**:
+```
+FUNCTION addPattern(new_pattern):
+    // Check for duplicate or out-of-order
+    IF new_pattern.sequence_number <= last_sequence_number:
+        WARN("Duplicate or out-of-order pattern")
+        RETURN FALSE
+    END IF
+
+    // Add to buffer
+    APPEND new_pattern TO patterns_array
+
+    // Sort by sequence number (handles out-of-order arrival)
+    IF length(patterns_array) > 1:
+        SORT patterns_array BY sequence_number ASCENDING
+    END IF
+
+    // Trim if exceeds maximum size
+    IF length(patterns_array) > buffer_size:
+        patterns_array = last buffer_size patterns
+    END IF
+
+    last_sequence_number = new_pattern.sequence_number
+    RETURN TRUE
+END FUNCTION
+```
+
+**Buffer Retrieval Algorithm**:
+```
+FUNCTION getNextPattern(current_time):
+    IF patterns_array is EMPTY:
+        WARN("Buffer empty - no patterns available")
+        RETURN NULL
+    END IF
+
+    // Move to next pattern
+    current_index = current_index + 1
+
+    IF current_index <= length(patterns_array):
+        pattern = patterns_array[current_index]
+    ELSE:
+        WARN("Buffer exhausted")
+        current_index = length(patterns_array)
+        pattern = patterns_array[current_index]  // Reuse last pattern
+    END IF
+
+    // Check remaining buffer level
+    remaining = length(patterns_array) - current_index
+    IF remaining < buffer_threshold:
+        WARN("Buffer running low: " + remaining + " patterns remaining")
+    END IF
+
+    RETURN pattern
+END FUNCTION
 ```
 
 ---
@@ -192,6 +297,99 @@ orbit = OrbitModel(500, 98, 0, 0);
 
 % Can ground station see it?
 visible = orbit.isVisible(100, 5);  % true if elevation > 5°
+```
+
+**Satellite Position Algorithm**:
+```
+FUNCTION getSatelliteState(time):
+    // Calculate orbital angular velocity
+    omega = 2π / orbital_period
+
+    // Calculate true anomaly (angle in orbit plane)
+    theta = omega × time
+
+    // Orbital radius
+    r = earth_radius + altitude
+
+    // Position in orbital plane
+    x_orbit = r × COS(theta)
+    y_orbit = r × SIN(theta)
+    z_orbit = 0
+
+    // Circular orbital velocity
+    v = SQRT(μ / r)
+
+    // Velocity in orbital plane
+    vx_orbit = -v × SIN(theta)
+    vy_orbit = v × COS(theta)
+    vz_orbit = 0
+
+    // Rotate by inclination angle
+    inc = inclination_in_radians
+    position = [x_orbit,
+                y_orbit × COS(inc),
+                y_orbit × SIN(inc)]
+
+    velocity = [vx_orbit,
+                vy_orbit × COS(inc),
+                vy_orbit × SIN(inc)]
+
+    RETURN position, velocity
+END FUNCTION
+```
+
+**Visibility Check Algorithm**:
+```
+FUNCTION isVisible(time, min_elevation):
+    // Get satellite position
+    sat_position = getSatelliteState(time).position
+
+    // Ground station position (spherical coordinates)
+    gs_lat_rad = RADIANS(ground_station_latitude)
+    gs_lon_rad = RADIANS(ground_station_longitude)
+
+    gs_position = [earth_radius × COS(gs_lat_rad) × COS(gs_lon_rad),
+                   earth_radius × COS(gs_lat_rad) × SIN(gs_lon_rad),
+                   earth_radius × SIN(gs_lat_rad)]
+
+    // Range vector from ground station to satellite
+    range_vector = sat_position - gs_position
+    range = MAGNITUDE(range_vector)
+
+    // Local vertical at ground station (zenith direction)
+    local_vertical = gs_position / MAGNITUDE(gs_position)
+
+    // Angle between range vector and local vertical
+    cos_angle = DOT_PRODUCT(range_vector, local_vertical) / range
+    angle_from_vertical = ARCCOS(cos_angle)
+
+    // Elevation is 90° minus angle from vertical
+    elevation = 90° - angle_from_vertical
+
+    // Visible if elevation above minimum threshold
+    RETURN (elevation >= min_elevation)
+END FUNCTION
+```
+
+**Range Rate Algorithm**:
+```
+FUNCTION getRangeToGroundStation(time):
+    // Get satellite state
+    [sat_position, sat_velocity] = getSatelliteState(time)
+
+    // Ground station position
+    gs_position = calculateGroundStationPosition()
+
+    // Range vector and distance
+    range_vector = sat_position - gs_position
+    range = MAGNITUDE(range_vector)
+
+    // Range rate is velocity component along line of sight
+    // Positive = approaching, Negative = receding
+    range_rate = DOT_PRODUCT(sat_velocity, range_vector) / range
+
+    RETURN range, range_rate
+END FUNCTION
 ```
 
 ---
@@ -271,6 +469,65 @@ compensated = doppler.compensateDoppler(receivedFreq, 4.0, 2.05e9);
 % Returns: 2,050,000,000 Hz (back to original!)
 ```
 
+**Doppler Shift Calculation Algorithm**:
+```
+FUNCTION calculateDopplerShift(transmit_frequency, range_rate):
+    // Constants
+    speed_of_light = 2.998 × 10^8  // m/s
+
+    // Convert range rate from km/s to m/s
+    range_rate_ms = range_rate × 1000
+
+    // Doppler shift formula (for electromagnetic waves, v << c)
+    // Positive range_rate (approaching) → positive shift (higher freq)
+    // Negative range_rate (receding) → negative shift (lower freq)
+    doppler_shift = transmit_frequency × (range_rate_ms / speed_of_light)
+
+    RETURN doppler_shift
+END FUNCTION
+```
+
+**Doppler Compensation Algorithm**:
+```
+FUNCTION compensateDoppler(received_frequency, range_rate, original_transmit_frequency):
+    IF NOT compensation_enabled:
+        RETURN received_frequency  // No compensation
+    END IF
+
+    // Calculate expected Doppler shift
+    expected_shift = calculateDopplerShift(original_transmit_frequency, range_rate)
+
+    // Remove Doppler from received signal
+    compensated_frequency = received_frequency - expected_shift
+
+    RETURN compensated_frequency
+END FUNCTION
+```
+
+**Propagation Delay Algorithm**:
+```
+FUNCTION calculatePropagationDelay(range_km):
+    // Constants
+    speed_of_light = 2.998 × 10^8  // m/s
+
+    // Convert range to meters
+    range_m = range_km × 1000
+
+    // One-way propagation time
+    delay_seconds = range_m / speed_of_light
+
+    RETURN delay_seconds
+END FUNCTION
+
+FUNCTION calculateRoundTripDelay(range_km):
+    // Important for pattern distribution timing
+    one_way_delay = calculatePropagationDelay(range_km)
+    round_trip_delay = 2 × one_way_delay
+
+    RETURN round_trip_delay
+END FUNCTION
+```
+
 ---
 
 ### 5. SatelliteSender (`src/SatelliteSender.m`)
@@ -333,6 +590,63 @@ satellite.transmit(65);  % Send byte value 65 ('A')
 % 3. Calculated current Doppler shift
 % 4. "Transmitted" data on current frequency
 % 5. Logged: time, transmit freq, received freq (with Doppler), range, etc.
+```
+
+**Satellite Transmit Algorithm**:
+```
+FUNCTION transmit(data_symbol):
+    // Check if time to hop to next frequency
+    time_since_hop = current_time - last_hop_time
+
+    IF time_since_hop >= hop_duration:
+        CALL hopToNextFrequency()
+    END IF
+
+    // Get current orbital state
+    [range, range_rate] = orbit_model.getRangeToGroundStation(current_time)
+
+    // Apply Doppler shift to transmitted frequency
+    transmitted_frequency = current_frequency
+    received_frequency = applyDopplerShift(transmitted_frequency, range_rate)
+    doppler_shift = received_frequency - transmitted_frequency
+
+    // Log transmission for analysis
+    log_entry = {
+        time: current_time,
+        transmit_freq: transmitted_frequency,
+        received_freq: received_frequency,
+        doppler_shift: doppler_shift,
+        range: range,
+        range_rate: range_rate,
+        data_symbol: data_symbol
+    }
+
+    APPEND log_entry TO transmit_log
+
+    RETURN transmission_successful
+END FUNCTION
+```
+
+**Satellite Frequency Hop Algorithm**:
+```
+FUNCTION hopToNextFrequency():
+    // Get next pattern from buffer
+    pattern = pattern_buffer.getNextPattern(current_time)
+
+    IF pattern IS NOT NULL:
+        // Switch to new frequency
+        current_frequency = pattern.frequency
+        last_hop_time = current_time
+
+        // Clean up old patterns if buffer is getting low
+        IF buffer_level < buffer_threshold:
+            pattern_buffer.clearOldPatterns()
+        END IF
+    ELSE:
+        WARN("No pattern available for frequency hop")
+        // Keep using current frequency
+    END IF
+END FUNCTION
 ```
 
 ---
@@ -412,6 +726,88 @@ transmittedSignal.rangeRate = 4.0;            % km/s approaching
 [success, decodedData] = receiver.receive(transmittedSignal);
 % success = true (frequencies match after Doppler compensation)
 % decodedData = 65 ('A')
+```
+
+**Ground Receiver Algorithm**:
+```
+FUNCTION receive(transmitted_signal):
+    success = FALSE
+    decoded_symbol = NULL
+
+    // Check if time to hop to next frequency
+    time_since_hop = current_time - last_hop_time
+
+    IF time_since_hop >= hop_duration:
+        CALL hopToNextFrequency()
+    END IF
+
+    // Get expected frequency from current pattern
+    expected_frequency = current_frequency
+
+    // Get satellite velocity for Doppler compensation
+    [range, range_rate] = orbit_model.getRangeToGroundStation(current_time)
+
+    // Compensate for Doppler shift
+    compensated_frequency = compensateDoppler(
+        transmitted_signal.received_freq,
+        range_rate,
+        expected_frequency
+    )
+
+    // Check if frequencies match (within tolerance)
+    frequency_error = ABS(compensated_frequency - expected_frequency)
+    frequency_tolerance = expected_frequency × 0.01  // 1% tolerance
+
+    IF frequency_error < frequency_tolerance:
+        // Successfully decoded
+        success = TRUE
+        decoded_symbol = transmitted_signal.data_symbol
+    ELSE:
+        // Frequency mismatch - synchronization error
+        success = FALSE
+        sync_error_count = sync_error_count + 1
+    END IF
+
+    // Log reception
+    log_entry = {
+        time: current_time,
+        expected_freq: expected_frequency,
+        received_freq: transmitted_signal.received_freq,
+        compensated_freq: compensated_frequency,
+        freq_error: frequency_error,
+        success: success,
+        range: range,
+        range_rate: range_rate,
+        decoded_symbol: decoded_symbol OR NaN
+    }
+
+    APPEND log_entry TO receive_log
+
+    RETURN success, decoded_symbol
+END FUNCTION
+```
+
+**Receiver Frequency Hop Algorithm**:
+```
+FUNCTION hopToNextFrequency():
+    // Get next expected frequency from pattern buffer
+    // MUST be synchronized with satellite's pattern!
+    pattern = pattern_buffer.getNextPattern(current_time)
+
+    IF pattern IS NOT NULL:
+        // Switch to new expected frequency
+        current_frequency = pattern.frequency
+        last_hop_time = current_time
+
+        // Clean up old patterns if buffer is getting low
+        IF buffer_level < buffer_threshold:
+            pattern_buffer.clearOldPatterns()
+        END IF
+    ELSE:
+        WARN("No pattern available at receiver")
+        // This means loss of synchronization with satellite!
+    END IF
+END FUNCTION
 ```
 
 ---
