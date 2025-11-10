@@ -45,6 +45,7 @@ animData.speedMultiplier = 20; % Start at 20x speed (slower to see details)
 animData.frameSkip = 1; % Update every data point for smooth animation
 animData.paused = false;
 animData.quit = false;
+animData.wasVisible = false; % Track visibility transitions
 
 % Start animation BEFORE first visibility to see satellite enter window
 % Look back 30 seconds before first transmission
@@ -279,17 +280,13 @@ while i <= length(times) && ishandle(fig)
         set(txtCompFreq, 'String', sprintf('Compensated Freq: %.6f MHz', compFreq/1e6));
 
         % Check for visibility transitions
-        persistent wasVisible;
-        if isempty(wasVisible)
-            wasVisible = false;
-        end
-
         if visible
-            if ~wasVisible
+            if ~animData.wasVisible
                 % Just entered visibility window!
                 fprintf('[ENTER] Satellite entered visibility window at t=%.1fs, elevation=%.1f°\n', ...
                         currentTime, elevation);
-                wasVisible = true;
+                animData.wasVisible = true;
+                set(fig, 'UserData', animData); % Save updated state
             end
             if success
                 set(txtSuccess, 'String', '⬤ TRANSMITTING - DECODED', 'Color', 'g');
@@ -297,10 +294,11 @@ while i <= length(times) && ishandle(fig)
                 set(txtSuccess, 'String', '⬤ TRANSMITTING - SYNC ERROR', 'Color', 'r');
             end
         else
-            if wasVisible
+            if animData.wasVisible
                 % Just exited visibility window!
                 fprintf('[EXIT] Satellite exited visibility window at t=%.1fs\n', currentTime);
-                wasVisible = false;
+                animData.wasVisible = false;
+                set(fig, 'UserData', animData); % Save updated state
             end
             set(txtSuccess, 'String', '○ NOT VISIBLE', 'Color', [0.5, 0.5, 0.5]);
         end
