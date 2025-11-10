@@ -1,0 +1,23 @@
+JIT-FHSS SIMULATION REPORT
+=========================
+
+Simulation Parameters:
+  Duration: 6000 seconds
+  Time Step: 0.100 seconds
+  Hop Duration: 1.000 seconds
+  Frequency Band: 2000.0 - 2100.0 MHz
+  Number of Frequencies: 100
+  Satellite Altitude: 500 km
+  Central Sources (Redundant): 3
+
+Results:
+  Total Transmissions: 8280
+  Successful Receptions: 8270
+  Success Rate: 99.88%
+
+Key Findings:
+  - Maximum Doppler shift observed: 49.128 kHz
+  - Doppler compensation was successfully applied
+  - Frequency hopping pattern showed high entropy
+  - Redundant central sources provided reliable failover
+  - Synchronization maintained with 99.9% accuracy
