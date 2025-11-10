@@ -19,6 +19,11 @@ satelliteLog = results.satelliteLog;
 receiverLog = results.receiverLog;
 params = results.parameters;
 
+% Check if we have data
+if isempty(satelliteLog) || isempty(receiverLog)
+    error('No transmission data found. Satellite was likely not visible during simulation. Try increasing simDuration in run_simulation.m');
+end
+
 % Time vectors
 txTimes = [satelliteLog.time];
 rxTimes = [receiverLog.time];
