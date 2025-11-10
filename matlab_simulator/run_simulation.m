@@ -237,6 +237,12 @@ fprintf('\n');
 
 %% Save Results
 fprintf('Saving results...\n');
+
+% Ensure results directory exists
+if ~exist('results', 'dir')
+    mkdir('results');
+end
+
 results = struct();
 results.parameters = struct('simDuration', simDuration, ...
                             'timeStep', timeStep, ...
