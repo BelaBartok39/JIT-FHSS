@@ -7,6 +7,10 @@ clear; close all; clc;
 % Add source directory to path
 addpath('src/');
 
+% Initialize random number generator with time-based seed
+% This ensures each simulation run produces different results
+rng('shuffle');
+
 fprintf('=== JIT-FHSS Simulation ===\n\n');
 
 %% Simulation Parameters

@@ -86,6 +86,13 @@ classdef GroundReceiver < handle
                 obj.hopToNextFrequency();
             end
 
+            % Initialize frequency variables for logging
+            expectedFreq = obj.currentFrequency;
+            compensatedFreq = obj.dopplerModel.compensateDoppler(...
+                transmittedSignal.receivedFreq, rangeRate, expectedFreq);
+            freqError = abs(compensatedFreq - expectedFreq);
+            freqTolerance = expectedFreq * 0.01; % 1% tolerance
+
             % Check SNR threshold - signal must be strong enough to decode
             if snr_dB < obj.snrThreshold
                 % Signal too weak - cannot decode
@@ -93,15 +100,6 @@ classdef GroundReceiver < handle
                 failureReason = 'Low SNR';
             else
                 % SNR sufficient - check frequency synchronization
-                expectedFreq = obj.currentFrequency;
-
-                % Compensate for Doppler shift
-                compensatedFreq = obj.dopplerModel.compensateDoppler(...
-                    transmittedSignal.receivedFreq, rangeRate, expectedFreq);
-
-                % Check if received frequency matches expected (with tolerance)
-                freqError = abs(compensatedFreq - expectedFreq);
-                freqTolerance = expectedFreq * 0.01; % 1% tolerance
 
                 % Timing synchronization error due to clock drift
                 % Large clock errors cause hop timing mismatch
