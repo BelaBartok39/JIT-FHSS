@@ -53,30 +53,23 @@ classdef CentralSourceManager < handle
 
         function pattern = generatePattern(obj, timestamp)
             % Generate high-entropy frequency hopping pattern
-            % Try current source first, failover if necessary
+            % Pseudo-randomly selects from available sources for additional entropy
 
             pattern = struct();
 
             % Check for jamming (random interference)
             obj.updateJammingStatus();
 
-            % Find active source
-            sourceFound = false;
-            attempts = 0;
+            % Find all available sources (active AND not jammed)
+            availableSources = find(obj.sourcesActive & ~obj.jammed);
 
-            while ~sourceFound && attempts < obj.numSources
-                if obj.sourcesActive(obj.currentSourceIdx) && ~obj.jammed(obj.currentSourceIdx)
-                    % Current source is available
-                    sourceFound = true;
-                else
-                    % Failover to next source
-                    obj.failoverToNextSource();
-                    attempts = attempts + 1;
-                end
-            end
+            if ~isempty(availableSources)
+                % Pseudo-randomly select one of the available sources
+                % This adds additional entropy beyond just the pattern itself
+                selectedIdx = randi(length(availableSources));
+                obj.currentSourceIdx = availableSources(selectedIdx);
 
-            if sourceFound
-                % Generate pattern using active source
+                % Generate pattern using randomly selected source
                 obj.patternSequence = obj.patternSequence + 1;
 
                 % Use high-entropy random generation (simulating TRNG)
