@@ -6,6 +6,8 @@ classdef GroundReceiver < handle
         patternBuffer       % PatternBuffer instance
         dopplerModel        % DopplerModel instance
         orbitModel          % OrbitModel instance (for tracking satellite)
+        clockModel          % ClockModel for timing drift
+        linkBudget          % LinkBudgetModel for SNR calculation
         currentTime         % Current simulation time
         antennaGain         % Receive antenna gain in dBi
         noiseFigure         % Receiver noise figure in dB
@@ -14,6 +16,7 @@ classdef GroundReceiver < handle
         lastHopTime         % Time of last frequency hop
         receiveLog          % Log of received signals
         syncError           % Synchronization error in seconds
+        snrThreshold        % Minimum SNR for successful decoding (dB)
     end
 
     methods
@@ -22,6 +25,7 @@ classdef GroundReceiver < handle
             obj.orbitModel = orbitModel;
             obj.patternBuffer = PatternBuffer(bufferSize, floor(bufferSize * 0.2));
             obj.dopplerModel = DopplerModel();
+            obj.clockModel = ClockModel('ground');
             obj.currentTime = 0;
             obj.antennaGain = 25; % dBi (larger ground antenna)
             obj.noiseFigure = 3; % dB
@@ -30,6 +34,17 @@ classdef GroundReceiver < handle
             obj.currentFrequency = 0;
             obj.receiveLog = [];
             obj.syncError = 0;
+            obj.snrThreshold = 8.0; % Minimum 8 dB SNR for FHSS decoding
+
+            % Initialize link budget model
+            % Parameters: frequency, txPower, txGain, rxGain, systemTemp, bandwidth
+            obj.linkBudget = LinkBudgetModel(...
+                2.0e9, ...      % 2 GHz (S-band)
+                10, ...         % 10 dBW transmit power (10W)
+                15, ...         % 15 dBi satellite antenna gain
+                obj.antennaGain, ... % 25 dBi ground antenna gain
+                290, ...        % 290K system temperature (room temp + receiver noise)
+                1e6);           % 1 MHz bandwidth (FHSS channel width)
         end
 
         function requestPatterns(obj, centralSource, numPatterns)
@@ -55,34 +70,60 @@ classdef GroundReceiver < handle
             success = false;
             decodedSymbol = [];
 
-            % Check if time to hop to next frequency
-            if obj.currentTime - obj.lastHopTime >= obj.hopDuration
+            % Get current range and elevation for link budget
+            [range, rangeRate] = obj.orbitModel.getRangeToGroundStation(obj.currentTime);
+            elevation = obj.orbitModel.getElevationAngle(obj.currentTime);
+
+            % Calculate SNR including atmospheric effects
+            [snr_dB, linkComponents] = obj.linkBudget.calculateSNR(range, elevation);
+
+            % Get clock error for timing synchronization
+            clockError = obj.clockModel.getClockError(obj.currentTime);
+
+            % Check if time to hop to next frequency (including clock error)
+            timeSinceHop = obj.currentTime - obj.lastHopTime + clockError;
+            if timeSinceHop >= obj.hopDuration
                 obj.hopToNextFrequency();
             end
 
-            % Get expected frequency with Doppler compensation
-            expectedFreq = obj.currentFrequency;
-            [~, rangeRate] = obj.orbitModel.getRangeToGroundStation(obj.currentTime);
-
-            % Compensate for Doppler shift
-            compensatedFreq = obj.dopplerModel.compensateDoppler(...
-                transmittedSignal.receivedFreq, rangeRate, expectedFreq);
-
-            % Check if received frequency matches expected (with tolerance)
-            freqError = abs(compensatedFreq - expectedFreq);
-            freqTolerance = expectedFreq * 0.01; % 1% tolerance
-
-            if freqError < freqTolerance
-                % Successfully decoded
-                success = true;
-                decodedSymbol = transmittedSignal.dataSymbol;
-            else
-                % Frequency mismatch - synchronization error
+            % Check SNR threshold - signal must be strong enough to decode
+            if snr_dB < obj.snrThreshold
+                % Signal too weak - cannot decode
                 success = false;
-                obj.syncError = obj.syncError + 1;
+                failureReason = 'Low SNR';
+            else
+                % SNR sufficient - check frequency synchronization
+                expectedFreq = obj.currentFrequency;
+
+                % Compensate for Doppler shift
+                compensatedFreq = obj.dopplerModel.compensateDoppler(...
+                    transmittedSignal.receivedFreq, rangeRate, expectedFreq);
+
+                % Check if received frequency matches expected (with tolerance)
+                freqError = abs(compensatedFreq - expectedFreq);
+                freqTolerance = expectedFreq * 0.01; % 1% tolerance
+
+                % Timing synchronization error due to clock drift
+                % Large clock errors cause hop timing mismatch
+                if abs(clockError) > obj.hopDuration * 0.1
+                    % Clock drift > 10% of hop duration causes sync loss
+                    success = false;
+                    failureReason = 'Clock drift';
+                    obj.syncError = obj.syncError + 1;
+                elseif freqError < freqTolerance
+                    % Successfully decoded
+                    success = true;
+                    decodedSymbol = transmittedSignal.dataSymbol;
+                    failureReason = '';
+                else
+                    % Frequency mismatch - synchronization error
+                    success = false;
+                    failureReason = 'Freq mismatch';
+                    obj.syncError = obj.syncError + 1;
+                end
             end
 
-            % Log reception
+            % Log reception with all new parameters
             logEntry = struct();
             logEntry.time = obj.currentTime;
             logEntry.expectedFreq = expectedFreq;
@@ -92,6 +133,16 @@ classdef GroundReceiver < handle
             logEntry.success = success;
             logEntry.range = transmittedSignal.range;
             logEntry.rangeRate = transmittedSignal.rangeRate;
+            logEntry.snr_dB = snr_dB;
+            logEntry.elevation = elevation;
+            logEntry.clockError = clockError;
+            logEntry.failureReason = failureReason;
+
+            % Link budget components for analysis
+            logEntry.pathLoss_dB = linkComponents.fspl_dB;
+            logEntry.atmLoss_dB = linkComponents.atm_dB;
+            logEntry.ionoLoss_dB = linkComponents.iono_dB;
+            logEntry.rainLoss_dB = linkComponents.rain_dB;
 
             % Always include decodedSymbol field for consistent structure
             if success
