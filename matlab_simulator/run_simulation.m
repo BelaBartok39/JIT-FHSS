@@ -215,6 +215,32 @@ else
 end
 fprintf('\n');
 
+% Analyze failure reasons from new models
+receiverLog = receiver.getReceiveLog();
+if ~isempty(receiverLog)
+    fprintf('Failure Analysis (New Models):\n');
+
+    % Count failures by reason
+    lowSNR = sum(strcmp({receiverLog.failureReason}, 'Low SNR'));
+    clockDrift = sum(strcmp({receiverLog.failureReason}, 'Clock drift'));
+    freqMismatch = sum(strcmp({receiverLog.failureReason}, 'Freq mismatch'));
+
+    fprintf('  Low SNR failures: %d\n', lowSNR);
+    fprintf('  Clock drift failures: %d\n', clockDrift);
+    fprintf('  Frequency mismatch failures: %d\n', freqMismatch);
+
+    % SNR statistics
+    snrValues = [receiverLog.snr_dB];
+    fprintf('  SNR range: %.2f to %.2f dB (mean: %.2f dB)\n', ...
+            min(snrValues), max(snrValues), mean(snrValues));
+
+    % Clock error statistics
+    clockErrors = [receiverLog.clockError];
+    fprintf('  Clock error range: %.3e to %.3e s\n', ...
+            min(abs(clockErrors)), max(abs(clockErrors)));
+end
+fprintf('\n');
+
 % Central source statistics
 sourceStatus = centralSource.getStatus();
 fprintf('Central Source Statistics:\n');

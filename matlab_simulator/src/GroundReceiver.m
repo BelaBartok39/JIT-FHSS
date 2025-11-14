@@ -80,6 +80,14 @@ classdef GroundReceiver < handle
             % Get clock error for timing synchronization
             clockError = obj.clockModel.getClockError(obj.currentTime);
 
+            % Debug output on first reception
+            persistent firstReception;
+            if isempty(firstReception)
+                firstReception = true;
+                fprintf('[DEBUG] First reception: SNR=%.2f dB, clockError=%.3e s, range=%.1f km\n', ...
+                        snr_dB, clockError, range);
+            end
+
             % Check if time to hop to next frequency (including clock error)
             timeSinceHop = obj.currentTime - obj.lastHopTime + clockError;
             if timeSinceHop >= obj.hopDuration
