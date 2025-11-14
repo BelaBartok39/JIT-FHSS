@@ -17,17 +17,18 @@ classdef ClockModel < handle
             obj.startTime = 0;
 
             if strcmp(clockType, 'satellite')
-                % Satellite clocks are typically high-quality rubidium or cesium
-                % Stability: ~1e-11 to 1e-12 (short term)
-                obj.bias = randn() * 1e-6;      % Initial offset: ~1 microsecond RMS
-                obj.drift = randn() * 1e-11;    % Drift rate: ~10 ps/s
-                obj.aging = randn() * 1e-14;    % Aging: ~0.01 ps/s^2
+                % Satellite clocks: OCXO quality (commercial grade)
+                % Stability: ~1e-8 to 1e-9 (typical for LEO comm satellites)
+                % Not atomic-level - more realistic for cost-constrained systems
+                obj.bias = randn() * 1e-4;      % Initial offset: ~100 microsecond RMS
+                obj.drift = randn() * 5e-8;     % Drift rate: ~50 ns/s (realistic OCXO)
+                obj.aging = randn() * 1e-11;    % Aging: ~0.01 ns/s^2
             else
-                % Ground station clocks can be GPS-disciplined or rubidium
-                % Slightly better than satellite due to less harsh environment
-                obj.bias = randn() * 5e-7;      % Initial offset: ~0.5 microsecond RMS
-                obj.drift = randn() * 5e-12;    % Drift rate: ~5 ps/s
-                obj.aging = randn() * 5e-15;    % Aging: ~0.005 ps/s^2
+                % Ground station clocks: GPS-disciplined TCXO or OCXO
+                % Better than satellite but not perfect
+                obj.bias = randn() * 5e-5;      % Initial offset: ~50 microsecond RMS
+                obj.drift = randn() * 1e-8;     % Drift rate: ~10 ns/s
+                obj.aging = randn() * 5e-12;    % Aging: ~0.005 ns/s^2
             end
         end
 

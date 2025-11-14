@@ -34,13 +34,13 @@ classdef GroundReceiver < handle
             obj.currentFrequency = 0;
             obj.receiveLog = [];
             obj.syncError = 0;
-            obj.snrThreshold = 8.0; % Minimum 8 dB SNR for FHSS decoding
+            obj.snrThreshold = 15.0; % Minimum 15 dB SNR for reliable FHSS decoding (with FEC)
 
             % Initialize link budget model
             % Parameters: frequency, txPower, txGain, rxGain, systemTemp, bandwidth
             obj.linkBudget = LinkBudgetModel(...
                 2.0e9, ...      % 2 GHz (S-band)
-                10, ...         % 10 dBW transmit power (10W)
+                5, ...          % 5 dBW transmit power (3.16W - realistic for small sat)
                 15, ...         % 15 dBi satellite antenna gain
                 obj.antennaGain, ... % 25 dBi ground antenna gain
                 290, ...        % 290K system temperature (room temp + receiver noise)
@@ -110,9 +110,9 @@ classdef GroundReceiver < handle
                 % SNR sufficient - check frequency synchronization
 
                 % Timing synchronization error due to clock drift
-                % Large clock errors cause hop timing mismatch
-                if abs(clockError) > obj.hopDuration * 0.1
-                    % Clock drift > 10% of hop duration causes sync loss
+                % FHSS requires tight timing - errors > 0.1% of hop duration cause sync loss
+                if abs(clockError) > obj.hopDuration * 0.001
+                    % Clock drift > 1 ms (for 1s hop) causes sync loss
                     success = false;
                     failureReason = 'Clock drift';
                     obj.syncError = obj.syncError + 1;
