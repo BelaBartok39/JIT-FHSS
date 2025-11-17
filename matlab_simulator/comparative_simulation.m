@@ -42,16 +42,10 @@ receiver_JIT = GroundReceiver(orbitModel1, bufferSize, hopDuration);
 % Initialize jammer
 jammer_JIT = IntelligentJammer(numFrequencies, frequencyBand, jamBandwidth);
 
-% Pre-load patterns for JIT-FHSS
-fprintf('Distributing patterns from central source...\n');
-patterns_JIT = struct([]); % Initialize as empty struct array
-for i = 1:200
+% Pre-load initial buffer for JIT-FHSS
+fprintf('Distributing initial patterns from central source...\n');
+for i = 1:bufferSize
     pattern = centralSource.generatePattern(0);
-    if isempty(patterns_JIT)
-        patterns_JIT = pattern;
-    else
-        patterns_JIT(end+1) = pattern;
-    end
     receiver_JIT.patternBuffer.addPattern(pattern);
 end
 
@@ -73,35 +67,33 @@ for i = 1:simDuration
     if visible
         totalHops = totalHops + 1;
 
-        % Get current pattern
-        if totalHops <= length(patterns_JIT)
-            currentPattern = patterns_JIT(totalHops);
-            currentFreq = currentPattern.frequency;
+        % Generate pattern on-demand from external source
+        currentPattern = centralSource.generatePattern(currentTime);
+        currentFreq = currentPattern.frequency;
 
-            % Jammer observes during learning period
-            if totalHops <= learningPeriod
-                jammer_JIT.observePattern(currentFreq, totalHops);
+        % Jammer observes during learning period
+        if totalHops <= learningPeriod
+            jammer_JIT.observePattern(currentFreq, totalHops);
 
-                % Attempt to learn seed after sufficient observations
-                if totalHops == learningPeriod
-                    fprintf('[JIT-FHSS] Jammer learning phase complete (%d observations)\n', learningPeriod);
-                    success = jammer_JIT.learnPRNGSeed();
-                    if ~success
-                        fprintf('[JIT-FHSS] Jammer FAILED to learn pattern (external entropy!)\n');
-                    end
+            % Attempt to learn seed after sufficient observations
+            if totalHops == learningPeriod
+                fprintf('[JIT-FHSS] Jammer learning phase complete (%d observations)\n', learningPeriod);
+                success = jammer_JIT.learnPRNGSeed();
+                if ~success
+                    fprintf('[JIT-FHSS] Jammer FAILED to learn pattern (external entropy!)\n');
                 end
+            end
+        else
+            % Jammer attempts to predict and jam
+            jammer_JIT.jamNextPattern(totalHops);
+
+            % Check if current frequency is jammed
+            isJammed = jammer_JIT.checkIfJammed(currentFreq);
+
+            if isJammed
+                jammedCount_JIT = jammedCount_JIT + 1;
             else
-                % Jammer attempts to predict and jam
-                jammer_JIT.jamNextPattern(totalHops);
-
-                % Check if current frequency is jammed
-                isJammed = jammer_JIT.checkIfJammed(currentFreq);
-
-                if isJammed
-                    jammedCount_JIT = jammedCount_JIT + 1;
-                else
-                    successCount_JIT = successCount_JIT + 1;
-                end
+                successCount_JIT = successCount_JIT + 1;
             end
         end
     end

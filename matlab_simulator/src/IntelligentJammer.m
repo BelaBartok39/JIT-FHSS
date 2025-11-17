@@ -57,8 +57,8 @@ classdef IntelligentJammer < handle
             end
 
             % Brute force search for seed (simplified - real attack more sophisticated)
-            % Try seeds from 0 to 10000
-            for testSeed = 0:10000
+            % Try seeds from 0 to 100000 (covers most realistic seeds)
+            for testSeed = 0:100000
                 match = true;
 
                 % Check if this seed reproduces observed patterns
