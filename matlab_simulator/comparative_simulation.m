@@ -44,10 +44,14 @@ jammer_JIT = IntelligentJammer(numFrequencies, frequencyBand, jamBandwidth);
 
 % Pre-load patterns for JIT-FHSS
 fprintf('Distributing patterns from central source...\n');
-patterns_JIT = [];
+patterns_JIT = struct([]); % Initialize as empty struct array
 for i = 1:200
     pattern = centralSource.generatePattern(0);
-    patterns_JIT(end+1) = pattern;
+    if isempty(patterns_JIT)
+        patterns_JIT = pattern;
+    else
+        patterns_JIT(end+1) = pattern;
+    end
     receiver_JIT.patternBuffer.addPattern(pattern);
 end
 
