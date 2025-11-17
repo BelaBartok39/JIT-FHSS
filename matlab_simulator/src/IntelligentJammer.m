@@ -20,7 +20,7 @@ classdef IntelligentJammer < handle
             obj.numFrequencies = numFrequencies;
             obj.frequencyBand = frequencyBand;
             obj.jamBandwidth = jamBandwidth; % e.g., can jam 5 frequencies simultaneously
-            obj.observedPatterns = [];
+            obj.observedPatterns = struct([]); % Initialize as empty struct array
             obj.learnedSeed = [];
             obj.jammedFrequencies = [];
             obj.successfulPredictions = 0;
@@ -37,7 +37,12 @@ classdef IntelligentJammer < handle
             pattern.sequenceNumber = sequenceNum;
             pattern.freqIdx = obj.frequencyToIndex(frequency);
 
-            obj.observedPatterns(end+1) = pattern;
+            % Handle first element properly for struct array
+            if isempty(obj.observedPatterns)
+                obj.observedPatterns = pattern;
+            else
+                obj.observedPatterns(end+1) = pattern;
+            end
         end
 
         function success = learnPRNGSeed(obj)
